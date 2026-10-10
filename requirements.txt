@@ -1,0 +1,11 @@
+# Versiones probadas con Python 3.12.
+# con scipy >= 1.18 el paquete dbcv falla (scipy.stats.rankdata(method="dense") devuelve floats en vez de enteros).
+pandas==3.0.6
+numpy==2.5.3
+matplotlib==3.11.2
+seaborn==0.13.2
+scikit-learn==1.9.1
+scipy==1.17.1
+ipykernel==7.4.0
+mpmath==1.4.1
+dbcv @ git+https://github.com/FelSiq/DBCV@13c3896ef78d12f1e3e1cbd394f2db9a09637ffd

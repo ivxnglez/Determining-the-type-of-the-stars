@@ -1,57 +1,51 @@
-# Determining the type of stars
+# ⭐ Stellar Clusters
 
-An unsupervised learning project: group 240 stars into types using only their physical measurements, then check whether the groups match the classes astronomers use (red dwarfs, white dwarfs, main sequence, supergiants, and so on). Done for the Machine Learning course at UC3M.
+Can an algorithm rediscover star types on its own? This project clusters **240 stars** using only their physical properties (no labels) and then compares the result with the classes astronomers use.
 
-Everything is in one notebook, `notebook.ipynb`. The text and comments in it are in Spanish.
+> Built for the Machine Learning course at UC3M, as a pair project. The whole analysis lives in a single notebook, written in Spanish.
 
-## Data
+## Overview
 
-`stars_data.csv` has 240 stars and six attributes:
+```
+raw data → clean Color → ordinal encoding → standardise → PCA (2D) → clustering → interpretation
+```
 
-| Column | Meaning |
-|---|---|
-| `Temperature` | surface temperature (K) |
-| `L` | luminosity relative to the Sun |
-| `R` | radius relative to the Sun |
-| `A_M` | absolute magnitude |
-| `Spectral_Class` | O, B, A, F, G, K, M (hottest to coolest) |
-| `Color` | main colour of the spectrum |
+1. **Cleaning:** `Color` had inconsistent spellings (`Blue-White`, `blue white`, `Whitish`…); they were merged into 7 colours ordered from red to blue. `Spectral_Class` was ordered from M to O (coolest to hottest).
+2. **PCA to 2 components**, keeping ~85% of the variance. All clustering is done in that plane, which also makes it easy to plot.
+3. **Three algorithms, each tuned:**
 
-There are no missing values. `L` and `R` are extremely skewed (most stars are near zero, a few giants are huge), and `A_M` is clearly bimodal, which hints at at least two very different populations.
+| Algorithm | Hyperparameter selection | Result |
+|---|---|---|
+| K-Means | silhouette + elbow | **6 clusters**, silhouette ≈ 0.65 |
+| Agglomerative | linkage × metric × number of clusters | 8 clusters (complete, euclidean), silhouette ≈ 0.64 |
+| DBSCAN | k-distance plot + grid search scored with DBCV | 4 clusters, 9% noise, DBCV ≈ 0.67 |
 
-## What the notebook does
+4. **Chosen model: K-Means with k = 6**, because its groups are the closest to the six known classes (brown dwarf, red dwarf, white dwarf, main sequence, supergiant, hypergiant), although the match is only partial (see below).
 
-1. **Exploratory analysis.** Distributions, correlations and a Hertzsprung-Russell style plot (temperature vs absolute magnitude).
-2. **Encoding.** `Color` has inconsistent spellings (`Blue-White`, `blue white`, `Whitish`, ...), so values are normalised and the near-duplicates collapsed into seven colours, then encoded ordinally from red (0) to blue (6). `Spectral_Class` is encoded from M (0) to O (6). Both orderings follow energy/temperature, which is why plain label encoding wouldn't do.
-3. **Scaling and PCA.** Standardise the six features, then PCA down to two components. These two components keep about 85% of the variance and all clustering is done on them.
-4. **Clustering**, with hyperparameters tuned for each method:
+## Key takeaways
 
-   | Method | Tuning | Result |
-   |---|---|---|
-   | K-Means | k from 2 to 14, silhouette and elbow | k = 6, silhouette 0.65 |
-   | Agglomerative | several linkage/metric combos, 2 to 39 clusters, silhouette | complete + euclidean, 8 clusters, silhouette 0.64 |
-   | DBSCAN | k-distance plot for a starting eps, then grid search over eps and `min_samples` scored with DBCV | eps = 0.65, `min_samples` = 10, 4 clusters, 9% noise, DBCV 0.67 |
-
-   For DBSCAN, picking the raw DBCV maximum collapsed everything into two big clusters, so the grid search is filtered to at least 3 clusters and at most 25% noise.
-
-5. **Final choice and pipeline.** K-Means with k = 6 on the PCA projection.
-6. **Comparison with the astronomical classes.** The six clusters are matched to the six classes in the assignment table (red dwarf, brown dwarf, white dwarf, main sequence, supergiant, hypergiant) by reading where each cluster falls in PC space and what the PCA loadings say about those axes.
-
-## Findings worth knowing
-
-- The three algorithms disagree on the number of groups (6, 8 and 4) and that is informative. DBSCAN finds the three well-separated populations (white dwarfs, giants, supergiants) plus one big continuous blob, because the main sequence has no low-density gap to split along. Agglomerative with complete linkage isolates a few extreme stars in tiny clusters.
-- K-Means was chosen because its six clusters line up best with the known classes, not because of a metric. Silhouette and DBCV measure different things and can't be compared directly.
-- The mapping from clusters to star classes is an interpretation, not something the model learned. With 240 stars and a 2D projection, the split between red and brown dwarfs in particular is subtle.
+- The algorithms disagree on the number of groups (6, 8 and 4), and that disagreement is informative: DBSCAN only separates groups that are divided by low-density gaps, so continuous populations (the main sequence, and the cool dwarfs) end up merged in large clusters.
+- Silhouette and DBCV measure different things and can't be compared directly; the final choice was made on astronomical interpretability.
+- The cluster ↔ star-type mapping is a **human interpretation** (reading positions in PCA space and the component loadings), not something the model learned.
+- **K-Means does not recover the six classes one-to-one.** All 40 stars with absolute magnitude ≥ 16 (the faintest, brown-dwarf-like ones) fall in the same cluster as the red dwarfs (85 stars), so brown and red dwarfs are not separated. The six clusters instead split the rest into white dwarfs plus low-luminosity stars (61), hot luminous main-sequence-like stars (42) and three groups of giants (10, 18 and 24 stars).
 
 ## Running it
 
-You need Python 3 and:
-
 ```bash
-pip install pandas numpy matplotlib seaborn scikit-learn scipy
-pip install "git+https://github.com/FelSiq/DBCV"
+python -m venv .venv
+.venv\Scripts\activate        # Windows (macOS/Linux: source .venv/bin/activate)
+pip install -r requirements.txt
+jupyter notebook notebook.ipynb
 ```
 
-The DBCV metric isn't in scikit-learn, so it comes from that package. Then open the notebook and run it top to bottom (Jupyter, VS Code or Colab; the CSV needs to sit next to the notebook).
+Tested with Python 3.12. `requirements.txt` already includes the DBCV metric, which is installed from GitHub, so **Git must be installed**. `scipy` is pinned to 1.17.1 on purpose: with `scipy >= 1.18` the `dbcv` package fails (`rankdata` returns floats instead of integers), and the DBSCAN grid search silently returns no results. In VS Code, select the `.venv` interpreter as the notebook kernel.
 
-Results are reproducible: the random seed is fixed in PCA and K-Means. Note that the notebook labels each K-Means cluster with a star type by its index number, so if you change the seed the cluster numbers can shuffle and those labels will need redoing.
+`stars_data.csv` must sit next to the notebook. Seeds are fixed; if you change them, cluster indices may be reshuffled and the manual cluster labels would need redoing.
+
+## Contents
+
+| File | Description |
+|---|---|
+| `notebook.ipynb` | EDA, PCA, clustering, model choice and comparison with the real classes |
+| `requirements.txt` | Pinned dependencies |
+| `stars_data.csv` | 240 stars: temperature, luminosity, radius, absolute magnitude, colour, spectral class |
